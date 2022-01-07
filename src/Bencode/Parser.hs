@@ -90,7 +90,18 @@ list = P.parser inner
 -- >>> P.runParser dict "d1:ai1e1:bi2ee"
 -- Success ([(BencodeString "a", BencodeInt 1),(BencodeString "b",BencodeInt 2)], "")
 dict :: Parser [BencodeKW]
-dict = P.fail "TODO (dict)"
+dict = P.parser inner
+  where
+    inner input =
+      case P.runParser (P.char 'd') input of
+        Success (_, rest) ->
+          case P.runParser (P.many (P.andThen string value)) rest of
+            Success (list, rest2) ->
+              case P.runParser (P.char 'e') rest2 of
+                Success (_, rest3) -> Success (list, rest3)
+                Error _ -> Error (P.UnexpectedInput input "wrong")
+            Error _ -> Error (P.UnexpectedInput input "wrong")
+        Error _ -> Error (P.UnexpectedInput input "wrong")
 
 -- | Convenience wrapper for `value`
 --

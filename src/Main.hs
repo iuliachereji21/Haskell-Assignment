@@ -14,12 +14,21 @@ import Entry.Entry
     FmtEntry (FmtEntry),
     matchedByAllQueries,
     matchedByQuery,
+    entryListDecoder,
+    entryListEncoder
   )
+  
 import Result
 import System.Environment (getArgs)
 import Test.SimpleTest.Mock
 import Prelude hiding (print, putStrLn, readFile)
 import qualified Prelude
+import qualified Bencode.Parser as Ben
+import qualified Bencode.Decoder as De
+import Bencode.Value
+import qualified Entry.Query as Q
+import Entry.Query (QueryTerm (..))
+import Text.Read (Lexeme(String))
 
 usageMsg :: String
 usageMsg =
@@ -37,8 +46,6 @@ usageMsg =
 handleInit :: TestableMonadIO m => m ()
 handleInit = 
   Test.SimpleTest.Mock.writeFile "snippets.ben" (DB.serialize DB.empty)
-  --where s = DB.empty 
-  --(show s.Entry )
 
 -- | Handle the get command
 handleGet :: TestableMonadIO m => GetOptions -> m ()
@@ -48,7 +55,7 @@ handleGet getOpts = do
     myfunc val =
       case val of
         Success ok -> case (DB.findFirst predicate ok) of
-          Just v -> putStrLn (entrySnippet v)--putStrLn (entryLanguage v)--(show v) 
+          Just v -> putStrLn (entrySnippet v)
           Nothing -> putStrLn "nothing"
         Error er -> putStrLn "Failed to load DB"
     predicate ent = if (entryId ent) == id then True else False
@@ -74,11 +81,42 @@ handleSearch searchOpts = do
         Error er -> putStrLn "Failed to load DB"
     
 
+
+-- readFile' :: TestableMonadIO m => String -> m String
+-- readFile' filename = do
+--   contents <- readFile filename
+--   return $ length contents `seq` contents
+
+-- -- | Load the database from disk.
+-- load2 :: String -> m (Result DB.LoadDBError DB.SnippetDB)
+-- load2 filename= do
+--   contents <- readFile' filename
+--   return $ case Ben.parse contents of
+--     Error pe -> Error DB.CorruptedFile
+--     Success bv -> buildEntries bv
+--       where
+--         buildEntries :: BencodeValue -> Result DB.LoadDBError DB.SnippetDB
+--         buildEntries bv =
+--           case De.runDecoder entryListDecoder bv of
+--             Success es -> Success (DB.SnippetDB es)
+--             Error de -> Error InvalidStructure    
+
 -- | Handle the add command
 handleAdd :: TestableMonadIO m => AddOptions -> m ()
-handleAdd addOpts =
-  return ()
+handleAdd addOpts = do
+  contents <-readFile (addOptFilename addOpts)
+  let makeEntry2 id2 = makeEntry id2 contents addOpts
+  let funcInsert mydb = DB.insertWith makeEntry2 mydb 
+
+  --makeEntry2 id2 = makeEntry id2 contents addOpts
+  DB.modify funcInsert >>= myfunc
+
   where
+    myfunc val =
+      case val of 
+        Success ok -> putStrLn "ok"
+        Error _ -> putStrLn "error"
+
     makeEntry :: Int -> String -> AddOptions -> Entry
     makeEntry id snippet addOpts =
       Entry

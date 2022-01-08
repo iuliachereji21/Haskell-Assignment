@@ -43,13 +43,12 @@ handleInit =
 -- | Handle the get command
 handleGet :: TestableMonadIO m => GetOptions -> m ()
 handleGet getOpts = do
-  
   DB.load >>= myfunc 
   where
     myfunc val =
       case val of
         Success ok -> case (DB.findFirst predicate ok) of
-          Just v -> putStrLn (show (FmtEntry v))--putStrLn (entryLanguage v)--(show v) 
+          Just v -> putStrLn (entrySnippet v)--putStrLn (entryLanguage v)--(show v) 
           Nothing -> putStrLn "nothing"
         Error er -> putStrLn "Failed to load DB"
     predicate ent = if (entryId ent) == id then True else False
@@ -58,7 +57,22 @@ handleGet getOpts = do
 
 -- | Handle the search command
 handleSearch :: TestableMonadIO m => SearchOptions -> m ()
-handleSearch searchOpts = return ()
+handleSearch searchOpts = do
+  DB.load >>= myfunc 
+  where
+    myfunc val =
+      let 
+        showFmtEntry :: [Entry] -> String
+        showFmtEntry [] = ""
+        showFmtEntry (x:xs) = (show (FmtEntry x)) ++ "\n" ++ showFmtEntry xs
+      in
+      case val of
+        Success ok -> 
+          case (DB.findAll (matchedByAllQueries (searchOptTerms searchOpts)) ok) of
+            [] -> putStrLn "No entries found"
+            l -> putStrLn (showFmtEntry l)
+        Error er -> putStrLn "Failed to load DB"
+    
 
 -- | Handle the add command
 handleAdd :: TestableMonadIO m => AddOptions -> m ()

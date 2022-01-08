@@ -115,7 +115,7 @@ handleAdd addOpts = do
     myfunc val =
       case val of 
         Success ok -> putStrLn "ok"
-        Error _ -> putStrLn "error"
+        Error _ -> putStrLn "Failed to load DB"
 
     makeEntry :: Int -> String -> AddOptions -> Entry
     makeEntry id snippet addOpts =

@@ -13,9 +13,7 @@ import Entry.Entry
   ( Entry (..),
     FmtEntry (FmtEntry),
     matchedByAllQueries,
-    matchedByQuery,
-    entryListDecoder,
-    entryListEncoder
+    matchedByQuery
   )
 
 import Result
@@ -23,11 +21,6 @@ import System.Environment (getArgs)
 import Test.SimpleTest.Mock
 import Prelude hiding (print, putStrLn, readFile)
 import qualified Prelude
-import qualified Bencode.Parser as Ben
-import qualified Bencode.Decoder as De
-import Bencode.Value
-import qualified Entry.Query as Q
-import Entry.Query (QueryTerm (..))
 import Text.Read (Lexeme(String))
 
 usageMsg :: String
@@ -54,11 +47,11 @@ handleGet getOpts = do
   where
     myfunc val =
       case val of
-        Success ok -> case (DB.findFirst predicate ok) of
+        Success ok -> case DB.findFirst predicate ok of
           Just v -> putStrLn (entrySnippet v)
           Nothing -> putStrLn "nothing"
         Error er -> putStrLn "Failed to load DB"
-    predicate ent = if (entryId ent) == id then True else False
+    predicate ent = entryId ent == id
     id = getOptId getOpts
 
 
@@ -71,35 +64,14 @@ handleSearch searchOpts = do
       let
         showFmtEntry :: [Entry] -> String
         showFmtEntry [] = ""
-        showFmtEntry (x:xs) = (show (FmtEntry x)) ++ "\n" ++ showFmtEntry xs
+        showFmtEntry (x:xs) = show (FmtEntry x) ++ "\n" ++ showFmtEntry xs
       in
       case val of
         Success ok ->
-          case (DB.findAll (matchedByAllQueries (searchOptTerms searchOpts)) ok) of
+          case DB.findAll (matchedByAllQueries (searchOptTerms searchOpts)) ok of
             [] -> putStrLn "No entries found"
             l -> putStrLn (showFmtEntry l)
         Error er -> putStrLn "Failed to load DB"
-
-
-
--- readFile' :: TestableMonadIO m => String -> m String
--- readFile' filename = do
---   contents <- readFile filename
---   return $ length contents `seq` contents
-
--- -- | Load the database from disk.
--- load2 :: String -> m (Result DB.LoadDBError DB.SnippetDB)
--- load2 filename= do
---   contents <- readFile' filename
---   return $ case Ben.parse contents of
---     Error pe -> Error DB.CorruptedFile
---     Success bv -> buildEntries bv
---       where
---         buildEntries :: BencodeValue -> Result DB.LoadDBError DB.SnippetDB
---         buildEntries bv =
---           case De.runDecoder entryListDecoder bv of
---             Success es -> Success (DB.SnippetDB es)
---             Error de -> Error InvalidStructure    
 
 -- | Handle the add command
 handleAdd :: TestableMonadIO m => AddOptions -> m ()
@@ -108,17 +80,13 @@ handleAdd addOpts = do
   let makeEntry2 id2 = makeEntry id2 contents addOpts
   let funcInsert mydb = DB.insertWith makeEntry2 mydb
   let predicate ent = entrySnippet ent == contents
-  val <- DB.load 
+  val <- DB.load
   case val of
     Success ok ->
       case DB.findFirst predicate ok of
           Just v -> putStrLn ("Entry with this content already exists: " ++ "\n" ++ show (FmtEntry v))
           Nothing -> DB.modify funcInsert >>= myfunc
     Error _ -> putStrLn "Failed to load DB"
-
-
-  --makeEntry2 id2 = makeEntry id2 contents addOpts
-  --DB.modify funcInsert >>= myfunc
 
   where
     myfunc val =

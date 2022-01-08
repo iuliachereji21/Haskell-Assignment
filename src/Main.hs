@@ -17,7 +17,7 @@ import Entry.Entry
     entryListDecoder,
     entryListEncoder
   )
-  
+
 import Result
 import System.Environment (getArgs)
 import Test.SimpleTest.Mock
@@ -44,13 +44,13 @@ usageMsg =
 
 -- | Handle the init command
 handleInit :: TestableMonadIO m => m ()
-handleInit = 
+handleInit =
   Test.SimpleTest.Mock.writeFile "snippets.ben" (DB.serialize DB.empty)
 
 -- | Handle the get command
 handleGet :: TestableMonadIO m => GetOptions -> m ()
 handleGet getOpts = do
-  DB.load >>= myfunc 
+  DB.load >>= myfunc
   where
     myfunc val =
       case val of
@@ -60,26 +60,26 @@ handleGet getOpts = do
         Error er -> putStrLn "Failed to load DB"
     predicate ent = if (entryId ent) == id then True else False
     id = getOptId getOpts
-    
+
 
 -- | Handle the search command
 handleSearch :: TestableMonadIO m => SearchOptions -> m ()
 handleSearch searchOpts = do
-  DB.load >>= myfunc 
+  DB.load >>= myfunc
   where
     myfunc val =
-      let 
+      let
         showFmtEntry :: [Entry] -> String
         showFmtEntry [] = ""
         showFmtEntry (x:xs) = (show (FmtEntry x)) ++ "\n" ++ showFmtEntry xs
       in
       case val of
-        Success ok -> 
+        Success ok ->
           case (DB.findAll (matchedByAllQueries (searchOptTerms searchOpts)) ok) of
             [] -> putStrLn "No entries found"
             l -> putStrLn (showFmtEntry l)
         Error er -> putStrLn "Failed to load DB"
-    
+
 
 
 -- readFile' :: TestableMonadIO m => String -> m String
@@ -106,14 +106,23 @@ handleAdd :: TestableMonadIO m => AddOptions -> m ()
 handleAdd addOpts = do
   contents <-readFile (addOptFilename addOpts)
   let makeEntry2 id2 = makeEntry id2 contents addOpts
-  let funcInsert mydb = DB.insertWith makeEntry2 mydb 
+  let funcInsert mydb = DB.insertWith makeEntry2 mydb
+  let predicate ent = entrySnippet ent == contents
+  val <- DB.load 
+  case val of
+    Success ok ->
+      case DB.findFirst predicate ok of
+          Just v -> putStrLn ("Entry with this content already exists: " ++ "\n" ++ show (FmtEntry v))
+          Nothing -> DB.modify funcInsert >>= myfunc
+    Error _ -> putStrLn "Failed to load DB"
+
 
   --makeEntry2 id2 = makeEntry id2 contents addOpts
-  DB.modify funcInsert >>= myfunc
+  --DB.modify funcInsert >>= myfunc
 
   where
     myfunc val =
-      case val of 
+      case val of
         Success ok -> putStrLn "ok"
         Error _ -> putStrLn "Failed to load DB"
 
